@@ -1,0 +1,11 @@
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\bin\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.deps.json
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\bin\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.runtimeconfig.json
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\bin\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.runtimeconfig.dev.json
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\bin\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.dll
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\obj\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.csprojResolveAssemblyReference.cache
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\obj\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.csproj.CoreCompileInputs.cache
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\obj\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.AssemblyInfo.cs
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\obj\Debug\netcoreapp1.1\UserSecretsAssemblyInfo.cs
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\bin\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.pdb
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\obj\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.dll
+C:\Users\jan.lenoch\source\repos\cloud-example-webhook-cache-invalidation\WebhookCacheInvalidationMvc\obj\Debug\netcoreapp1.1\WebhookCacheInvalidationMvc.pdb
