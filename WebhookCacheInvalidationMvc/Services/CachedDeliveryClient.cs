@@ -12,7 +12,6 @@ using System.Reflection;
 using System.Threading;
 using WebhookCacheInvalidationMvc.Helpers;
 using WebhookCacheInvalidationMvc.Models;
-using Newtonsoft.Json;
 
 namespace WebhookCacheInvalidationMvc.Services
 {
@@ -121,13 +120,12 @@ namespace WebhookCacheInvalidationMvc.Services
         /// <returns>The <see cref="DeliveryItemResponse"/> instance that contains the content item with the specified codename.</returns>
         public async Task<DeliveryItemResponse> GetItemAsync(string codename, IEnumerable<IQueryParameter> parameters)
         {
-            //string cacheKey = $"{nameof(GetItemAsync)}|{codename}|{Join(parameters?.Select(p => p.GetQueryStringParameter()).ToList())}";
             var identifierTokens = new List<string>();
             identifierTokens.Add(CacheHelper.CONTENT_ITEM_TYPE_CODENAME);
             identifierTokens.Add(codename);
             identifierTokens.AddRange(parameters?.Select(p => p.GetQueryStringParameter()));
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync(codename, parameters), CreateItemOrListingDependencyGroup, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync(codename, parameters), GetContentItemOrListingResponseDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -162,9 +160,11 @@ namespace WebhookCacheInvalidationMvc.Services
         /// <returns>The <see cref="DeliveryItemListingResponse"/> instance that contains the content items. If no query parameters are specified, all content items are returned.</returns>
         public async Task<DeliveryItemListingResponse> GetItemsAsync(IEnumerable<IQueryParameter> parameters)
         {
-            string cacheKey = $"{nameof(GetItemsAsync)}|{Join(parameters?.Select(p => p.GetQueryStringParameter()).ToList())}";
+            var identifierTokens = new List<string>();
+            identifierTokens.Add(CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER);
+            identifierTokens.AddRange(parameters?.Select(p => p.GetQueryStringParameter()));
 
-            return await GetOrCreateAsync(cacheKey, () => _deliveryClient.GetItemsAsync(parameters));
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync(parameters), GetContentItemOrListingResponseDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -321,6 +321,81 @@ namespace WebhookCacheInvalidationMvc.Services
             }
 
             return codenames;
+        }
+
+        public static IEnumerable<EvictingArtifact> GetContentItemOrListingResponseDependencies<T>(T response)
+        {
+            if (response is DeliveryItemResponse || response is DeliveryItemListingResponse)
+            {
+                var dependencies = new List<EvictingArtifact>();
+
+                AddModularContentDependencies(response, dependencies);
+
+                if (response is DeliveryItemListingResponse)
+                {
+                    foreach (var codename in GetContentItemCodenamesFromListingResponse(response))
+                    {
+                        dependencies.Add(new EvictingArtifact
+                        {
+                            Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
+                            Codename = codename
+                        });
+                    }
+                }
+
+                return dependencies;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(nameof(response));
+            }
+        }
+
+        private static void AddModularContentDependencies<T>(T response, List<EvictingArtifact> dependencies)
+        {
+            // TODO Refactor foreach to LINQ
+            foreach (var codename in GetModularContentCodenames(response))
+            {
+                dependencies.Add(new EvictingArtifact
+                {
+                    Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
+                    Codename = codename
+                });
+            }
+        }
+
+        public static IEnumerable<EvictingArtifact> GetContentItemTypedResponseDependencies<T>(DeliveryItemResponse<T> response)
+            where T : ContentItemBase
+        {
+            var dependencies = new List<EvictingArtifact>();
+            AddModularContentDependencies(response, dependencies);
+
+            return dependencies;
+        }
+
+        public static IEnumerable<EvictingArtifact> GetContentItemListingTypedResponseDependencies<T>(DeliveryItemListingResponse<T> response)
+            where T : ContentItemBase
+        {
+            var dependencies = new List<EvictingArtifact>();
+            AddModularContentDependencies(response, dependencies);
+
+            foreach (var item in response.Items)
+            {
+                dependencies.Add(new EvictingArtifact
+                {
+                    Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
+                    Codename = item.System.Codename
+                });
+            }
+
+            return dependencies;
+        }
+
+        public static IEnumerable<string> GetContentItemCodenamesFromListingResponse<T>(T response)
+        {
+            var items = response.GetType().GetTypeInfo().GetProperty("Items", typeof(IReadOnlyList<ContentItem>)).GetValue(response) as IReadOnlyList<ContentItem>;
+
+            return items.Select(i => i.System.Codename);
         }
 
         /// <summary>

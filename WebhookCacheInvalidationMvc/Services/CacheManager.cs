@@ -16,7 +16,7 @@ namespace WebhookCacheInvalidationMvc.Services
     {
         private bool _disposed = false;
         private readonly IMemoryCache _memoryCache;
-        //private readonly IDeliveryClient _deliveryClient;
+        private readonly IDeliveryClient _deliveryClient;
 
         public int CacheExpirySeconds
         {
@@ -52,6 +52,19 @@ namespace WebhookCacheInvalidationMvc.Services
             return cacheEntry;
         }
 
+        public async Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, IEnumerable<EvictingArtifact>> dependencyListFactory, IEnumerable<string> identifierTokens)
+        {
+            if (!_memoryCache.TryGetValue(StringHelpers.Join(identifierTokens), out T entry))
+            {
+                T response = await contentFactory.Invoke();
+                await Task.Run(() => CreateEntry(response, dependencyListFactory, identifierTokens));
+
+                return response;
+            }
+
+            return entry;
+        }
+
         /// <summary>
         /// The <see cref="IDisposable.Dispose"/> implementation.
         /// </summary>
@@ -80,6 +93,49 @@ namespace WebhookCacheInvalidationMvc.Services
 
             var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds)).AddExpirationToken(new CancellationChangeToken(currentCancellationTokenSource.Token));
             _memoryCache.Set(StringHelpers.Join(identifierTokens), response, cacheEntryOptions);
+        }
+
+        protected void CreateEntry<T>(T response, Func<T, IEnumerable<EvictingArtifact>> dependencyListFactory, IEnumerable<string> identifierTokens)
+        {
+            var dependencies = dependencyListFactory.Invoke(response);
+            var cancellationTokens = new List<IChangeToken>();
+            var entryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
+            var dummyOptions = new MemoryCacheEntryOptions().SetPriority(CacheItemPriority.NeverRemove);
+
+            foreach (var dependency in dependencies)
+            {
+                var dummyTokens = new List<string>();
+                dummyTokens.Add("dummy");
+                dummyTokens.Add(dependency.Type);
+                dummyTokens.Add(dependency.Codename);
+                var dummyKey = StringHelpers.Join(dummyTokens);
+                CancellationTokenSource dummyEntry;
+
+                if (!_memoryCache.TryGetValue(dummyKey, out dummyEntry))
+                {
+                    dummyEntry = _memoryCache.Set(dummyKey, new CancellationTokenSource(), dummyOptions);
+                }
+
+                cancellationTokens.Add(new CancellationChangeToken(dummyEntry.Token));
+            }
+
+            cancellationTokens.Select(ct => entryOptions.AddExpirationToken(ct));
+            _memoryCache.Set(StringHelpers.Join(identifierTokens), response, entryOptions);
+        }
+
+        public void InvalidateEntry(EvictingArtifact identifiers)
+        {
+            _memoryCache.Remove(StringHelpers.Join(identifiers.Type, identifiers.Codename));
+
+            if (_memoryCache.TryGetValue(StringHelpers.Join("dummy", identifiers.Type, identifiers.Codename), out CancellationTokenSource dummyEntry))
+            {
+                dummyEntry.Cancel();
+            }
+        }
+
+        private MemoryCacheEntryOptions CreateOptionsWithSlidingExpiration()
+        {
+            return new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
         }
 
         protected virtual void Dispose(bool disposing)

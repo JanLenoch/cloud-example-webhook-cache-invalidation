@@ -1,7 +1,4 @@
-﻿using WebhookCacheInvalidationMvc.Models;
-using WebhookCacheInvalidationMvc.Resolvers;
-using WebhookCacheInvalidationMvc.Services;
-using KenticoCloud.Delivery;
+﻿using KenticoCloud.Delivery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Rewrite;
@@ -10,6 +7,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using WebhookCacheInvalidationMvc.Filters;
+using WebhookCacheInvalidationMvc.Models;
+using WebhookCacheInvalidationMvc.Resolvers;
+using WebhookCacheInvalidationMvc.Services;
 
 namespace WebhookCacheInvalidationMvc
 {
@@ -40,6 +42,7 @@ namespace WebhookCacheInvalidationMvc
             // Register the IConfiguration instance which ProjectOptions binds against.
             services.Configure<ProjectOptions>(Configuration);
             services.AddSingleton<ICacheManager>(sp => new CacheManager(sp.GetRequiredService<IMemoryCache>()));
+            services.AddScoped<KenticoCloudSignatureActionFilter>();
             services.AddMvc();
 
             services.AddSingleton<IDeliveryClient>(c => new CachedDeliveryClient(c.GetRequiredService<IOptions<ProjectOptions>>(), c.GetRequiredService<ICacheManager>())
