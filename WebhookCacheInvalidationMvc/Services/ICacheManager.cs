@@ -11,7 +11,7 @@ namespace WebhookCacheInvalidationMvc.Services
         List<string> CacheKeys { get; set; }
 
         //Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, DependencyGroup> dependencyGroupFactory, IEnumerable<string> identifierTokens);
-        Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, IEnumerable<EvictingArtifact>> dependencyListFactory, IEnumerable<string> identifierTokens);
-        void InvalidateEntry(EvictingArtifact identifiers);
+        Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, IEnumerable<Dependency>> dependencyListFactory, IEnumerable<string> identifierTokens);
+        void InvalidateEntry(Dependency identifiers);
     }
 }

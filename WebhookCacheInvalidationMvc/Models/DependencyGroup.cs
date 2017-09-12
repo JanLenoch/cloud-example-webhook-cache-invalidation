@@ -8,7 +8,7 @@ namespace WebhookCacheInvalidationMvc.Models
 {
     public class DependencyGroup
     {
-        public List<EvictingArtifact> EvictingArtifacts { get; set; }
+        public List<Dependency> EvictingArtifacts { get; set; }
         public CancellationTokenSource CancellationTokenSource { get; set; }
     }
 }

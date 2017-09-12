@@ -31,7 +31,7 @@ namespace WebhookCacheInvalidationMvc.Controllers
                         case "upsert":
                             foreach (var item in model.Data.Items)
                             {
-                                _cacheManager.InvalidateEntry(new EvictingArtifact
+                                _cacheManager.InvalidateEntry(new Dependency
                                 {
                                     Type = model.Message.Type,
                                     Codename = item.Codename

@@ -282,7 +282,7 @@ namespace WebhookCacheInvalidationMvc.Services
 
                 return new DependencyGroup
                 {
-                    EvictingArtifacts = modularContentCodenames.Select(mc => new EvictingArtifact
+                    EvictingArtifacts = modularContentCodenames.Select(mc => new Dependency
                     {
                         Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
                         Codename = mc
@@ -323,11 +323,11 @@ namespace WebhookCacheInvalidationMvc.Services
             return codenames;
         }
 
-        public static IEnumerable<EvictingArtifact> GetContentItemOrListingResponseDependencies<T>(T response)
+        public static IEnumerable<Dependency> GetContentItemOrListingResponseDependencies<T>(T response)
         {
             if (response is DeliveryItemResponse || response is DeliveryItemListingResponse)
             {
-                var dependencies = new List<EvictingArtifact>();
+                var dependencies = new List<Dependency>();
 
                 AddModularContentDependencies(response, dependencies);
 
@@ -335,7 +335,7 @@ namespace WebhookCacheInvalidationMvc.Services
                 {
                     foreach (var codename in GetContentItemCodenamesFromListingResponse(response))
                     {
-                        dependencies.Add(new EvictingArtifact
+                        dependencies.Add(new Dependency
                         {
                             Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
                             Codename = codename
@@ -351,12 +351,12 @@ namespace WebhookCacheInvalidationMvc.Services
             }
         }
 
-        private static void AddModularContentDependencies<T>(T response, List<EvictingArtifact> dependencies)
+        private static void AddModularContentDependencies<T>(T response, List<Dependency> dependencies)
         {
             // TODO Refactor foreach to LINQ
             foreach (var codename in GetModularContentCodenames(response))
             {
-                dependencies.Add(new EvictingArtifact
+                dependencies.Add(new Dependency
                 {
                     Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
                     Codename = codename
@@ -364,24 +364,24 @@ namespace WebhookCacheInvalidationMvc.Services
             }
         }
 
-        public static IEnumerable<EvictingArtifact> GetContentItemTypedResponseDependencies<T>(DeliveryItemResponse<T> response)
+        public static IEnumerable<Dependency> GetContentItemTypedResponseDependencies<T>(DeliveryItemResponse<T> response)
             where T : ContentItemBase
         {
-            var dependencies = new List<EvictingArtifact>();
+            var dependencies = new List<Dependency>();
             AddModularContentDependencies(response, dependencies);
 
             return dependencies;
         }
 
-        public static IEnumerable<EvictingArtifact> GetContentItemListingTypedResponseDependencies<T>(DeliveryItemListingResponse<T> response)
+        public static IEnumerable<Dependency> GetContentItemListingTypedResponseDependencies<T>(DeliveryItemListingResponse<T> response)
             where T : ContentItemBase
         {
-            var dependencies = new List<EvictingArtifact>();
+            var dependencies = new List<Dependency>();
             AddModularContentDependencies(response, dependencies);
 
             foreach (var item in response.Items)
             {
-                dependencies.Add(new EvictingArtifact
+                dependencies.Add(new Dependency
                 {
                     Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
                     Codename = item.System.Codename

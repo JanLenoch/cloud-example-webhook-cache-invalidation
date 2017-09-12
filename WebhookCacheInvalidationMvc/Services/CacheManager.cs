@@ -52,12 +52,12 @@ namespace WebhookCacheInvalidationMvc.Services
             return cacheEntry;
         }
 
-        public async Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, IEnumerable<EvictingArtifact>> dependencyListFactory, IEnumerable<string> identifierTokens)
+        public async Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, IEnumerable<Dependency>> dependencyListFactory, IEnumerable<string> identifierTokens)
         {
             if (!_memoryCache.TryGetValue(StringHelpers.Join(identifierTokens), out T entry))
             {
-                T response = await contentFactory.Invoke();
-                await Task.Run(() => CreateEntry(response, dependencyListFactory, identifierTokens));
+                T response = await contentFactory();
+                CreateEntry(response, dependencyListFactory, identifierTokens);
 
                 return response;
             }
@@ -95,9 +95,9 @@ namespace WebhookCacheInvalidationMvc.Services
             _memoryCache.Set(StringHelpers.Join(identifierTokens), response, cacheEntryOptions);
         }
 
-        protected void CreateEntry<T>(T response, Func<T, IEnumerable<EvictingArtifact>> dependencyListFactory, IEnumerable<string> identifierTokens)
+        protected void CreateEntry<T>(T response, Func<T, IEnumerable<Dependency>> dependencyListFactory, IEnumerable<string> identifierTokens)
         {
-            var dependencies = dependencyListFactory.Invoke(response);
+            var dependencies = dependencyListFactory(response);
             var entryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
             var dummyOptions = new MemoryCacheEntryOptions().SetPriority(CacheItemPriority.NeverRemove);
 
@@ -108,19 +108,14 @@ namespace WebhookCacheInvalidationMvc.Services
                 dummyIdentifierTokens.Add(dependency.Type);
                 dummyIdentifierTokens.Add(dependency.Codename);
                 var dummyKey = StringHelpers.Join(dummyIdentifierTokens);
-
-                if (!_memoryCache.TryGetValue(dummyKey, out CancellationTokenSource dummyEntry))
-                {
-                    dummyEntry = _memoryCache.Set(dummyKey, new CancellationTokenSource(), dummyOptions);
-                }
-
+                CancellationTokenSource dummyEntry = _memoryCache.Set(dummyKey, new CancellationTokenSource(), dummyOptions);
                 entryOptions.AddExpirationToken(new CancellationChangeToken(dummyEntry.Token));
             }
 
             _memoryCache.Set(StringHelpers.Join(identifierTokens), response, entryOptions);
         }
 
-        public void InvalidateEntry(EvictingArtifact identifiers)
+        public void InvalidateEntry(Dependency identifiers)
         {
             _memoryCache.Remove(StringHelpers.Join(identifiers.Type, identifiers.Codename));
 

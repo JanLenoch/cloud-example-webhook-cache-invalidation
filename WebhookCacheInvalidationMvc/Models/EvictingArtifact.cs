@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace WebhookCacheInvalidationMvc.Models
 {
-    public class EvictingArtifact
+    public class Dependency
     {
         public string Type { get; set; }
         public string Codename { get; set; }
