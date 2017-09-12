@@ -7,25 +7,26 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Options;
 
 namespace WebhookCacheInvalidationMvc.Filters
 {
     public class KenticoCloudSignatureActionFilter : ActionFilterAttribute
     {
-        private readonly IConfiguration _configuration;
+        private readonly string _secret;
 
-        public KenticoCloudSignatureActionFilter(IConfiguration configuration) => _configuration = configuration;
+        public KenticoCloudSignatureActionFilter(IOptions<ProjectOptions> projectOptions) => _secret = projectOptions.Value.KenticoCloudWebhookSecret;
 
         public override void OnActionExecuting(ActionExecutingContext context)
         {
             var signature = context.HttpContext.Request.Headers["X-KC-Signature"].FirstOrDefault();
             var content = context.HttpContext.Request.Body.ToString();
-            var hash = GenerateHash(content, _configuration.GetValue("KenticoCloudSignature", string.Empty));
+            var decryptedSecret = GenerateHash(content, _secret);
 
-            if (signature != hash)
-            {
-                context.Result = new UnauthorizedResult();
-            }
+            //if (decryptedSecret != _secret)
+            //{
+            //    context.Result = new UnauthorizedResult();
+            //}
         }
 
         private static string GenerateHash(string message, string secret)

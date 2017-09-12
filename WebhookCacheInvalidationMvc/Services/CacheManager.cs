@@ -16,7 +16,7 @@ namespace WebhookCacheInvalidationMvc.Services
     {
         private bool _disposed = false;
         private readonly IMemoryCache _memoryCache;
-        private readonly IDeliveryClient _deliveryClient;
+        //private readonly IDeliveryClient _deliveryClient;
 
         public int CacheExpirySeconds
         {
@@ -98,28 +98,25 @@ namespace WebhookCacheInvalidationMvc.Services
         protected void CreateEntry<T>(T response, Func<T, IEnumerable<EvictingArtifact>> dependencyListFactory, IEnumerable<string> identifierTokens)
         {
             var dependencies = dependencyListFactory.Invoke(response);
-            var cancellationTokens = new List<IChangeToken>();
             var entryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
             var dummyOptions = new MemoryCacheEntryOptions().SetPriority(CacheItemPriority.NeverRemove);
 
             foreach (var dependency in dependencies)
             {
-                var dummyTokens = new List<string>();
-                dummyTokens.Add("dummy");
-                dummyTokens.Add(dependency.Type);
-                dummyTokens.Add(dependency.Codename);
-                var dummyKey = StringHelpers.Join(dummyTokens);
-                CancellationTokenSource dummyEntry;
+                var dummyIdentifierTokens = new List<string>();
+                dummyIdentifierTokens.Add("dummy");
+                dummyIdentifierTokens.Add(dependency.Type);
+                dummyIdentifierTokens.Add(dependency.Codename);
+                var dummyKey = StringHelpers.Join(dummyIdentifierTokens);
 
-                if (!_memoryCache.TryGetValue(dummyKey, out dummyEntry))
+                if (!_memoryCache.TryGetValue(dummyKey, out CancellationTokenSource dummyEntry))
                 {
                     dummyEntry = _memoryCache.Set(dummyKey, new CancellationTokenSource(), dummyOptions);
                 }
 
-                cancellationTokens.Add(new CancellationChangeToken(dummyEntry.Token));
+                entryOptions.AddExpirationToken(new CancellationChangeToken(dummyEntry.Token));
             }
 
-            cancellationTokens.Select(ct => entryOptions.AddExpirationToken(ct));
             _memoryCache.Set(StringHelpers.Join(identifierTokens), response, entryOptions);
         }
 

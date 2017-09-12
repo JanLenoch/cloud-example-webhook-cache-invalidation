@@ -33,7 +33,7 @@ namespace WebhookCacheInvalidationMvc.Controllers
                             {
                                 _cacheManager.InvalidateEntry(new EvictingArtifact
                                 {
-                                    Type = item.Type,
+                                    Type = model.Message.Type,
                                     Codename = item.Codename
                                 });
                             }
