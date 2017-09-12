@@ -9,6 +9,7 @@ using System.Threading;
 using WebhookCacheInvalidationMvc.Helpers;
 using WebhookCacheInvalidationMvc.Models;
 using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.Options;
 
 namespace WebhookCacheInvalidationMvc.Services
 {
@@ -16,7 +17,6 @@ namespace WebhookCacheInvalidationMvc.Services
     {
         private bool _disposed = false;
         private readonly IMemoryCache _memoryCache;
-        //private readonly IDeliveryClient _deliveryClient;
 
         public int CacheExpirySeconds
         {
@@ -24,32 +24,10 @@ namespace WebhookCacheInvalidationMvc.Services
             set;
         }
 
-        public List<string> CacheKeys
+        public CacheManager(IOptions<ProjectOptions> projectOptions, IMemoryCache memoryCache)
         {
-            get;
-            set;
-        }
-
-        public CacheManager(IMemoryCache memoryCache) //, IDeliveryClient deliveryClient)
-        {
+            CacheExpirySeconds = projectOptions.Value.CacheTimeoutSeconds;
             _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
-            //_deliveryClient = deliveryClient ?? throw new ArgumentNullException(nameof(deliveryClient));
-
-            // HACK
-            CacheExpirySeconds = 60;
-        }
-
-        public async Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, DependencyGroup> dependencyGroupFactory, IEnumerable<string> identifierTokens)
-        {
-            if (!_memoryCache.TryGetValue(StringHelpers.Join(identifierTokens), out T cacheEntry))
-            {
-                T response = await contentFactory.Invoke();
-                await Task.Run(() => CreateEntry(response, dependencyGroupFactory, identifierTokens));
-
-                return response;
-            }
-
-            return cacheEntry;
         }
 
         public async Task<T> GetOrCreateAsync<T>(Func<Task<T>> contentFactory, Func<T, IEnumerable<Dependency>> dependencyListFactory, IEnumerable<string> identifierTokens)
@@ -65,37 +43,7 @@ namespace WebhookCacheInvalidationMvc.Services
             return entry;
         }
 
-        /// <summary>
-        /// The <see cref="IDisposable.Dispose"/> implementation.
-        /// </summary>
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected void CreateEntry<T>(T response, Func<T, DependencyGroup> dependencyGroupFactory, IEnumerable<string> identifierTokens)
-        {
-            var dependencyGroupList = _memoryCache.GetOrCreate(CacheHelper.DEPENDENCY_GROUP_LIST_ENTRY_KEY, entry => { return new List<DependencyGroup>(); });
-            DependencyGroup currentDependencyGroup = dependencyGroupFactory.Invoke(response);
-            CancellationTokenSource currentCancellationTokenSource = null;
-
-            if (!dependencyGroupList.Contains(currentDependencyGroup, new DependencyGroupEqualityComparer()))
-            {
-                dependencyGroupList.Add(currentDependencyGroup);
-                _memoryCache.Set(CacheHelper.DEPENDENCY_GROUP_LIST_ENTRY_KEY, dependencyGroupList, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
-                currentCancellationTokenSource = currentDependencyGroup.CancellationTokenSource;
-            }
-            else
-            {
-                currentCancellationTokenSource = dependencyGroupList.First(dg => new DependencyGroupEqualityComparer().Equals(dg, currentDependencyGroup)).CancellationTokenSource;
-            }
-
-            var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds)).AddExpirationToken(new CancellationChangeToken(currentCancellationTokenSource.Token));
-            _memoryCache.Set(StringHelpers.Join(identifierTokens), response, cacheEntryOptions);
-        }
-
-        protected void CreateEntry<T>(T response, Func<T, IEnumerable<Dependency>> dependencyListFactory, IEnumerable<string> identifierTokens)
+        public void CreateEntry<T>(T response, Func<T, IEnumerable<Dependency>> dependencyListFactory, IEnumerable<string> identifierTokens)
         {
             var dependencies = dependencyListFactory(response);
             var entryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
@@ -108,26 +56,39 @@ namespace WebhookCacheInvalidationMvc.Services
                 dummyIdentifierTokens.Add(dependency.Type);
                 dummyIdentifierTokens.Add(dependency.Codename);
                 var dummyKey = StringHelpers.Join(dummyIdentifierTokens);
-                CancellationTokenSource dummyEntry = _memoryCache.Set(dummyKey, new CancellationTokenSource(), dummyOptions);
-                entryOptions.AddExpirationToken(new CancellationChangeToken(dummyEntry.Token));
+                CancellationTokenSource dummyEntry;
+
+                if (!_memoryCache.TryGetValue(dummyKey, out dummyEntry) || _memoryCache.TryGetValue(dummyKey, out dummyEntry) && dummyEntry.IsCancellationRequested)
+                {
+                    dummyEntry = _memoryCache.Set(dummyKey, new CancellationTokenSource(), dummyOptions);
+                }
+
+                if (dummyEntry != null)
+                {
+                    entryOptions.AddExpirationToken(new CancellationChangeToken(dummyEntry.Token));
+                }
             }
 
+            var mirrorDummy = _memoryCache.Set(StringHelpers.Join("dummy", identifierTokens.ElementAtOrDefault(0), identifierTokens.ElementAtOrDefault(1)), new CancellationTokenSource(), dummyOptions);
+            entryOptions.AddExpirationToken(new CancellationChangeToken(mirrorDummy.Token));
             _memoryCache.Set(StringHelpers.Join(identifierTokens), response, entryOptions);
         }
 
         public void InvalidateEntry(Dependency identifiers)
         {
-            _memoryCache.Remove(StringHelpers.Join(identifiers.Type, identifiers.Codename));
-
             if (_memoryCache.TryGetValue(StringHelpers.Join("dummy", identifiers.Type, identifiers.Codename), out CancellationTokenSource dummyEntry))
             {
                 dummyEntry.Cancel();
             }
         }
 
-        private MemoryCacheEntryOptions CreateOptionsWithSlidingExpiration()
+        /// <summary>
+        /// The <see cref="IDisposable.Dispose"/> implementation.
+        /// </summary>
+        public void Dispose()
         {
-            return new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -143,6 +104,11 @@ namespace WebhookCacheInvalidationMvc.Services
             }
 
             _disposed = true;
+        }
+
+        private MemoryCacheEntryOptions CreateOptionsWithSlidingExpiration()
+        {
+            return new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
         }
     }
 }
