@@ -41,11 +41,11 @@ namespace WebhookCacheInvalidationMvc
 
             // Register the IConfiguration instance which ProjectOptions binds against.
             services.Configure<ProjectOptions>(Configuration);
-            services.AddSingleton<ICacheManager>(sp => new CacheManager(sp.GetRequiredService<IMemoryCache>()));
+            services.AddSingleton<ICacheManager>(sp => new CacheManager(sp.GetRequiredService<IOptions<ProjectOptions>>(), sp.GetRequiredService<IMemoryCache>()));
             services.AddScoped<KenticoCloudSignatureActionFilter>();
             services.AddMvc();
 
-            services.AddSingleton<IDeliveryClient>(c => new CachedDeliveryClient(c.GetRequiredService<IOptions<ProjectOptions>>(), c.GetRequiredService<ICacheManager>())
+            services.AddSingleton<ICachedDeliveryClient>(c => new CachedDeliveryClient(c.GetRequiredService<IOptions<ProjectOptions>>(), c.GetRequiredService<ICacheManager>())
             {
                 CodeFirstModelProvider = { TypeProvider = new CustomTypeProvider() },
                 ContentLinkUrlResolver = new CustomContentLinkUrlResolver()

@@ -7,14 +7,14 @@ using WebhookCacheInvalidationMvc.Models;
 
 namespace WebhookCacheInvalidationMvc.Helpers
 {
-    public class EvictingArtifactEqualityComparer : IEqualityComparer<Dependency>
+    public class IdentifierSetEqualityComparer : IEqualityComparer<IdentifierSet>
     {
-        public bool Equals(Dependency x, Dependency y)
+        public bool Equals(IdentifierSet x, IdentifierSet y)
         {
             return x.Type.Equals(y.Type) && x.Codename.Equals(y.Codename);
         }
 
-        public int GetHashCode(Dependency obj)
+        public int GetHashCode(IdentifierSet obj)
         {
             return $"{obj.Type}{obj.Codename}".GetHashCode();
         }

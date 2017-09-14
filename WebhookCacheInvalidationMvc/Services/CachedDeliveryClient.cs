@@ -8,14 +8,12 @@ using Newtonsoft.Json.Linq;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Memory;
 
-using System.Reflection;
-using System.Threading;
 using WebhookCacheInvalidationMvc.Helpers;
 using WebhookCacheInvalidationMvc.Models;
 
 namespace WebhookCacheInvalidationMvc.Services
 {
-    public class CachedDeliveryClient : IDeliveryClient, IDisposable
+    public class CachedDeliveryClient : ICachedDeliveryClient, IDisposable
     {
         #region "Fields"
 
@@ -123,9 +121,9 @@ namespace WebhookCacheInvalidationMvc.Services
             var identifierTokens = new List<string>();
             identifierTokens.Add(CacheHelper.CONTENT_ITEM_TYPE_CODENAME);
             identifierTokens.Add(codename);
-            identifierTokens.AddRange(parameters?.Select(p => p.GetQueryStringParameter()));
+            AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync(codename, parameters), GetContentItemOrListingResponseDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync(codename, parameters), GetContentItemOrListingDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -139,7 +137,37 @@ namespace WebhookCacheInvalidationMvc.Services
         {
             string cacheKey = $"{nameof(GetItemAsync)}-{typeof(T).FullName}|{codename}|{Join(parameters?.Select(p => p.GetQueryStringParameter()).ToList())}";
 
-            return await GetOrCreateAsync(cacheKey, () => _deliveryClient.GetItemAsync<T>(codename, parameters));
+            return await GetOrCreateAsync(codename, () => _deliveryClient.GetItemAsync<T>(codename, parameters));
+        }
+
+        async Task<DeliveryItemResponse<T>> ICachedDeliveryClient.GetItemAsync<T>(string codename, params IQueryParameter[] parameters)
+        {
+            return await (this as ICachedDeliveryClient).GetItemAsync<T>(codename, (IEnumerable<IQueryParameter>)parameters);
+        }
+
+        async Task<DeliveryItemResponse<T>> ICachedDeliveryClient.GetItemAsync<T>(string codename, IEnumerable<IQueryParameter> parameters)
+        {
+            var identifierTokens = new List<string>();
+            identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_typed"));
+            identifierTokens.Add(codename);
+            AddIdentifiersFromParameters(parameters, identifierTokens);
+
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync<T>(codename, parameters), GetTypedContentItemDependencies, identifierTokens);
+        }
+
+        public async Task<DeliveryItemResponse<object>> GetRuntimeTypedItemAsync(string codename, params IQueryParameter[] parameters)
+        {
+            return await GetRuntimeTypedItemAsync(codename, (IEnumerable<IQueryParameter>)parameters);
+        }
+
+        public async Task<DeliveryItemResponse<object>> GetRuntimeTypedItemAsync(string codename, IEnumerable<IQueryParameter> parameters = null)
+        {
+            var identifierTokens = new List<string>();
+            identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_runtime_typed"));
+            identifierTokens.Add(codename);
+            AddIdentifiersFromParameters(parameters, identifierTokens);
+
+            return await _cacheManager.GetOrCreateObjectAsync(() => _deliveryClient.GetItemAsync<object>(codename, parameters), GetContentItemOrListingDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -162,9 +190,9 @@ namespace WebhookCacheInvalidationMvc.Services
         {
             var identifierTokens = new List<string>();
             identifierTokens.Add(CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER);
-            identifierTokens.AddRange(parameters?.Select(p => p.GetQueryStringParameter()));
+            AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync(parameters), GetContentItemOrListingResponseDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync(parameters), GetContentItemOrListingDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -191,6 +219,34 @@ namespace WebhookCacheInvalidationMvc.Services
             string cacheKey = $"{nameof(GetItemsAsync)}-{typeof(T).FullName}|{Join(parameters?.Select(p => p.GetQueryStringParameter()).ToList())}";
 
             return await GetOrCreateAsync(cacheKey, () => _deliveryClient.GetItemsAsync<T>(parameters));
+        }
+
+        async Task<DeliveryItemListingResponse<T>> ICachedDeliveryClient.GetItemsAsync<T>(params IQueryParameter[] parameters)
+        {
+            return await (this as ICachedDeliveryClient).GetItemsAsync<T>((IEnumerable<IQueryParameter>)parameters);
+        }
+
+        async Task<DeliveryItemListingResponse<T>> ICachedDeliveryClient.GetItemsAsync<T>(IEnumerable<IQueryParameter> parameters)
+        {
+            var identifierTokens = new List<string>();
+            identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, "_typed"));
+            AddIdentifiersFromParameters(parameters, identifierTokens);
+
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync<T>(parameters), GetTypedContentItemListingDependencies, identifierTokens);
+        }
+
+        public async Task<DeliveryItemListingResponse<object>> GetRuntimeTypedItemListingAsync(params IQueryParameter[] parameters)
+        {
+            return await GetRuntimeTypedItemListingAsync((IEnumerable<IQueryParameter>)parameters);
+        }
+
+        public async Task<DeliveryItemListingResponse<object>> GetRuntimeTypedItemListingAsync(IEnumerable<IQueryParameter> parameters)
+        {
+            var identifierTokens = new List<string>();
+            identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, "_runtime_typed"));
+            AddIdentifiersFromParameters(parameters, identifierTokens);
+
+            return await _cacheManager.GetOrCreateObjectCollectionAsync(() => _deliveryClient.GetItemsAsync<object>(parameters), GetContentItemOrListingDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -264,138 +320,86 @@ namespace WebhookCacheInvalidationMvc.Services
             return await GetOrCreateAsync(cacheKey, () => _deliveryClient.GetContentElementAsync(contentTypeCodename, contentElementCodename));
         }
 
-        public DependencyGroup CreateItemOrListingDependencyGroup<T>(T response)
+        public static IEnumerable<IdentifierSet> GetContentItemOrListingDependencies<T>(T response)
         {
-            if (response is DeliveryItemResponse || response is DeliveryItemListingResponse)
+            var dependencies = new List<IdentifierSet>();
+            AddModularContentDependencies(response, dependencies);
+
+            if (response is DeliveryItemResponse || response is DeliveryItemResponse<object>)
             {
-                IEnumerable<string> modularContentCodenames = null;
-
-                if (response is DeliveryItemResponse)
-                {
-                    modularContentCodenames = GetCodenamesFromResponse(response).modularContentCodenames;
-                }
-
-                if (response is DeliveryItemListingResponse)
-                {
-                    modularContentCodenames = GetCodenamesFromListingResponse(response).modularContentCodenames;
-                }
-
-                return new DependencyGroup
-                {
-                    EvictingArtifacts = modularContentCodenames.Select(mc => new Dependency
-                    {
-                        Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
-                        Codename = mc
-                    }).ToList(),
-                    CancellationTokenSource = new CancellationTokenSource()
-                };
-            }
-            else
-            {
-                // HACK Make the SDK classes implement an interface and use the "where" clause here.
-                throw new ArgumentOutOfRangeException(nameof(response), $"The {nameof(response)} parameter must be of either the DeliveryItemResponse or the DeliveryItemListingResponse type.");
-            }
-        }
-
-        public static (string itemCodename, IEnumerable<string> modularContentCodenames) GetCodenamesFromResponse<T>(T response)
-        {
-            var item = response.GetType().GetTypeInfo().GetProperty("Item", typeof(ContentItem)).GetValue(response) as ContentItem;
-
-            return (item.System.Codename, GetModularContentCodenames(response));
-        }
-
-        public static (IEnumerable<string> itemCodenames, IEnumerable<string> modularContentCodenames) GetCodenamesFromListingResponse(object response)
-        {
-            var items = response.GetType().GetTypeInfo().GetProperty("Items", typeof(IReadOnlyList<ContentItem>)).GetValue(response) as IReadOnlyList<ContentItem>;
-
-            return (items.Select(i => i.System.Codename), GetModularContentCodenames(response));
-        }
-
-        public static IEnumerable<string> GetModularContentCodenames(dynamic response)
-        {
-            var codenames = new List<string>();
-
-            foreach (var mc in response.ModularContent)
-            {
-                codenames.Add(mc.Path);
-            }
-
-            return codenames;
-        }
-
-        public static IEnumerable<Dependency> GetContentItemOrListingResponseDependencies<T>(T response)
-        {
-            if (response is DeliveryItemResponse || response is DeliveryItemListingResponse)
-            {
-                var dependencies = new List<Dependency>();
-
-                AddModularContentDependencies(response, dependencies);
-
-                if (response is DeliveryItemListingResponse)
-                {
-                    foreach (var codename in GetContentItemCodenamesFromListingResponse(response))
-                    {
-                        dependencies.Add(new Dependency
-                        {
-                            Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
-                            Codename = codename
-                        });
-                    }
-                }
-
-                return dependencies;
-            }
-            else
-            {
-                throw new ArgumentOutOfRangeException(nameof(response));
-            }
-        }
-
-        private static void AddModularContentDependencies<T>(T response, List<Dependency> dependencies)
-        {
-            // TODO Refactor foreach to LINQ
-            foreach (var codename in GetModularContentCodenames(response))
-            {
-                dependencies.Add(new Dependency
+                var ownDependency = new IdentifierSet
                 {
                     Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
-                    Codename = codename
-                });
-            }
-        }
+                    Codename = GetContentItemCodenameFromResponse(response)
+                };
 
-        public static IEnumerable<Dependency> GetContentItemTypedResponseDependencies<T>(DeliveryItemResponse<T> response)
-            where T : ContentItemBase
-        {
-            var dependencies = new List<Dependency>();
-            AddModularContentDependencies(response, dependencies);
+                if (!dependencies.Contains(ownDependency, new IdentifierSetEqualityComparer()))
+                {
+                    dependencies.Add(ownDependency);
+                }
+            }
+
+            if (response is DeliveryItemListingResponse || response is DeliveryItemListingResponse<object>)
+            {
+                foreach (var codename in GetContentItemCodenamesFromListingResponse(response))
+                {
+                    var dependency = new IdentifierSet
+                    {
+                        Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
+                        Codename = codename
+                    };
+
+                    if (!dependencies.Contains(dependency, new IdentifierSetEqualityComparer()))
+                    {
+                        dependencies.Add(dependency);
+                    }
+                }
+            }
 
             return dependencies;
         }
 
-        public static IEnumerable<Dependency> GetContentItemListingTypedResponseDependencies<T>(DeliveryItemListingResponse<T> response)
-            where T : ContentItemBase
+        public static IEnumerable<IdentifierSet> GetTypedContentItemDependencies<T>(DeliveryItemResponse<T> response)
+            where T : IContentItemBase
         {
-            var dependencies = new List<Dependency>();
+            var dependencies = new List<IdentifierSet>();
+            AddModularContentDependencies(response, dependencies);
+
+            var ownDependency = new IdentifierSet
+            {
+                Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
+                Codename = response.Item.System.Codename
+            };
+
+            if (!dependencies.Contains(ownDependency, new IdentifierSetEqualityComparer()))
+            {
+                dependencies.Add(ownDependency);
+            }
+
+            return dependencies;
+        }
+
+        public static IEnumerable<IdentifierSet> GetTypedContentItemListingDependencies<T>(DeliveryItemListingResponse<T> response)
+            where T : IContentItemBase
+        {
+            var dependencies = new List<IdentifierSet>();
             AddModularContentDependencies(response, dependencies);
 
             foreach (var item in response.Items)
             {
-                dependencies.Add(new Dependency
+                var dependency = new IdentifierSet
                 {
                     Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
                     Codename = item.System.Codename
-                });
+                };
+
+                if (!dependencies.Contains(dependency, new IdentifierSetEqualityComparer()))
+                {
+                    dependencies.Add(dependency);
+                }
             }
 
             return dependencies;
-        }
-
-        public static IEnumerable<string> GetContentItemCodenamesFromListingResponse<T>(T response)
-        {
-            var items = response.GetType().GetTypeInfo().GetProperty("Items", typeof(IReadOnlyList<ContentItem>)).GetValue(response) as IReadOnlyList<ContentItem>;
-
-            return items.Select(i => i.System.Codename);
         }
 
         /// <summary>
@@ -425,6 +429,78 @@ namespace WebhookCacheInvalidationMvc.Services
             });
 
             return await result;
+        }
+
+        private static string GetContentItemCodenameFromResponse(dynamic response)
+        {
+            if (response.Item?.System?.Codename != null)
+            {
+                try
+                {
+                    return response.Item.System.Codename;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> GetContentItemCodenamesFromListingResponse(dynamic response)
+        {
+            if (response?.Items != null)
+            {
+                var codenames = new List<string>();
+
+                foreach (dynamic item in response.Items)
+                {
+                    try
+                    {
+                        codenames.Add(item.System?.Codename);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+
+                return codenames;
+            }
+
+            return null;
+        }
+
+        private static void AddModularContentDependencies<T>(T response, List<IdentifierSet> dependencies)
+        {
+            foreach (var codename in GetModularContentCodenames(response))
+            {
+                dependencies.Add(new IdentifierSet
+                {
+                    Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
+                    Codename = codename
+                });
+            }
+        }
+
+        private static IEnumerable<string> GetModularContentCodenames(dynamic response)
+        {
+            if (response.ModularContent != null)
+            {
+                foreach (var mc in response.ModularContent)
+                {
+                    yield return mc.Path;
+                }
+            }
+        }
+
+        private static void AddIdentifiersFromParameters(IEnumerable<IQueryParameter> parameters, List<string> identifierTokens)
+        {
+            if (parameters != null)
+            {
+                identifierTokens.AddRange(parameters?.Select(p => p.GetQueryStringParameter())); 
+            }
         }
 
         protected virtual void Dispose(bool disposing)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-using KenticoCloud.Delivery;
 using Microsoft.AspNetCore.Mvc;
 using WebhookCacheInvalidationMvc.Filters;
 using WebhookCacheInvalidationMvc.Helpers;
@@ -16,7 +15,7 @@ namespace WebhookCacheInvalidationMvc.Controllers
     {
         protected readonly ICacheManager _cacheManager;
 
-        public WebhookController(IDeliveryClient deliveryClient, ICacheManager cacheManager) : base(deliveryClient) => _cacheManager = cacheManager;
+        public WebhookController(ICachedDeliveryClient deliveryClient, ICacheManager cacheManager) : base(deliveryClient) => _cacheManager = cacheManager;
 
         [ServiceFilter(typeof(KenticoCloudSignatureActionFilter))]
         public IActionResult Index([FromBody] KenticoCloudWebhookModel model)
@@ -31,7 +30,7 @@ namespace WebhookCacheInvalidationMvc.Controllers
                         case "upsert":
                             foreach (var item in model.Data.Items)
                             {
-                                _cacheManager.InvalidateEntry(new Dependency
+                                _cacheManager.InvalidateEntry(new IdentifierSet
                                 {
                                     Type = model.Message.Type,
                                     Codename = item.Codename

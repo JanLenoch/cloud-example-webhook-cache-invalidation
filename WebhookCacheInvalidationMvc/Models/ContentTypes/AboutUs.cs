@@ -10,15 +10,14 @@ using KenticoCloud.Delivery;
 
 namespace WebhookCacheInvalidationMvc.Models
 {
-    public partial class Article
+    public partial class AboutUs
     {
-        public IEnumerable<TaxonomyTerm> Personas { get; set; }
-        public string Title { get; set; }
-        public IEnumerable<Asset> TeaserImage { get; set; }
-        public DateTime? PostDate { get; set; }
-        public string Summary { get; set; }
-        public string BodyCopy { get; set; }
-        public string MetaKeywords { get; set; }
-        public string MetaDescription { get; set; }
+        public const string Codename = "about_us";
+        public const string FactsCodename = "facts";
+        public const string UrlPatternCodename = "url_pattern";
+
+        public IEnumerable<object> Facts { get; set; }
+        public string UrlPattern { get; set; }
+        public ContentItemSystemAttributes System { get; set; }
     }
 }

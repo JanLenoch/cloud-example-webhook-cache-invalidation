@@ -1,15 +1,17 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using KenticoCloud.Delivery;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+
 using SimpleMvcSitemap;
+using KenticoCloud.Delivery;
+using WebhookCacheInvalidationMvc.Services;
 
 namespace WebhookCacheInvalidationMvc.Controllers
 {
     public class SiteMapController : BaseController
     {
-        public SiteMapController(IDeliveryClient deliveryClient): base(deliveryClient)
+        public SiteMapController(ICachedDeliveryClient deliveryClient): base(deliveryClient)
         {
         }
 
