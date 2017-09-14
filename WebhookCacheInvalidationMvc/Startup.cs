@@ -1,6 +1,8 @@
 ﻿using KenticoCloud.Delivery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.AspNetCore.Rewrite;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -77,9 +79,15 @@ namespace WebhookCacheInvalidationMvc
 
             // Add IIS URL Rewrite list
             // See https://docs.microsoft.com/en-us/aspnet/core/fundamentals/url-rewriting
-            app.UseRewriter(new RewriteOptions()
-                .AddIISUrlRewrite(env.ContentRootFileProvider, "IISUrlRewrite.xml")
-            );
+            //app.UseRewriter(new RewriteOptions()
+            //    .AddIISUrlRewrite(env.ContentRootFileProvider, "IISUrlRewrite.xml")
+            //);
+
+            app.Use(async (context, next) =>
+            {
+                context.Request.EnableRewind();
+                await next();
+            });
 
             // Enables anything under wwwroot to be served directly (without any permission check).
             app.UseStaticFiles();

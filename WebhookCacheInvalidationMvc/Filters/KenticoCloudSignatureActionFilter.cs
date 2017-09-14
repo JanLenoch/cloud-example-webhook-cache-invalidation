@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
+using System.IO;
 
 namespace WebhookCacheInvalidationMvc.Filters
 {
@@ -20,12 +23,20 @@ namespace WebhookCacheInvalidationMvc.Filters
         public override void OnActionExecuting(ActionExecutingContext context)
         {
             var signature = context.HttpContext.Request.Headers["X-KC-Signature"].FirstOrDefault();
-            var content = context.HttpContext.Request.Body.ToString();
-            var decryptedSecret = GenerateHash(content, _secret);
+            var request = context.HttpContext.Request;
+            string content = null;
 
-            if (decryptedSecret != _secret)
+            using (var reader = new StreamReader(request.Body, Encoding.UTF8, true, 1024, true))
             {
-                context.Result = new UnauthorizedResult();
+                request.Body.Position = 0;
+                content = reader.ReadToEnd();
+                request.Body.Position = 0;
+                var generatedSignature = GenerateHash(content, _secret);
+
+                if (generatedSignature != signature)
+                {
+                    context.Result = new UnauthorizedResult();
+                }
             }
         }
 

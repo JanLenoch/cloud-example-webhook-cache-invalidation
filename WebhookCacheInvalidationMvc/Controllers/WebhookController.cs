@@ -23,9 +23,11 @@ namespace WebhookCacheInvalidationMvc.Controllers
             switch (model.Message.Type)
             {
                 case CacheHelper.CONTENT_ITEM_TYPE_CODENAME:
+                case CacheHelper.CONTENT_ITEM_VARIANT_TYPE_CODENAME:
                     switch (model.Message.Operation)
                     {
                         case "archive":
+                        case "publish":
                         case "unpublish":
                         case "upsert":
                             foreach (var item in model.Data.Items)
@@ -39,15 +41,13 @@ namespace WebhookCacheInvalidationMvc.Controllers
 
                             break;
                         default:
-                            break;
+                            return Ok();
                     }
 
-                    break;
+                    return Ok();
                 default:
-                    break;
+                    return Ok();
             }
-
-            return Ok();
         }
     }
 }
