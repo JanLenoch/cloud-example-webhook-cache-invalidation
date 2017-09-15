@@ -259,7 +259,7 @@ namespace WebhookCacheInvalidationMvc.Services
             var dependencies = new List<IdentifierSet>();
             AddModularContentDependencies(response, dependencies);
 
-            if (response is DeliveryItemResponse || response is DeliveryItemResponse<T>)
+            if (response is DeliveryItemResponse || response.GetType().GetGenericTypeDefinition() == typeof(DeliveryItemResponse<>))
             {
                 var ownDependency = new IdentifierSet
                 {
@@ -267,12 +267,12 @@ namespace WebhookCacheInvalidationMvc.Services
                     Codename = GetContentItemCodenameFromResponse(response)
                 };
 
-                if (!dependencies.Contains(ownDependency, new IdentifierSetEqualityComparer()))
+                if (!dependencies.Contains(ownDependency))
                 {
                     dependencies.Add(ownDependency);
                 }
             }
-            else if (response is DeliveryItemListingResponse || response is DeliveryItemListingResponse<T>)
+            else if (response is DeliveryItemListingResponse || response.GetType().GetGenericTypeDefinition() == typeof(DeliveryItemListingResponse<>))
             {
                 foreach (var codename in GetContentItemCodenamesFromListingResponse(response))
                 {
@@ -282,7 +282,7 @@ namespace WebhookCacheInvalidationMvc.Services
                         Codename = codename
                     };
 
-                    if (!dependencies.Contains(dependency, new IdentifierSetEqualityComparer()))
+                    if (!dependencies.Contains(dependency))
                     {
                         dependencies.Add(dependency);
                     }

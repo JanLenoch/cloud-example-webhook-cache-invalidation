@@ -20,5 +20,6 @@ namespace WebhookCacheInvalidationMvc.Models
         public string BodyCopy { get; set; }
         public string MetaKeywords { get; set; }
         public string MetaDescription { get; set; }
+        public ContentItemSystemAttributes System { get; set; }
     }
 }
