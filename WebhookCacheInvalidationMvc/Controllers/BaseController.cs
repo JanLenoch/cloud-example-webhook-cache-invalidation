@@ -1,16 +1,15 @@
-﻿using Microsoft.AspNetCore.Mvc;
-
-using WebhookCacheInvalidationMvc.Services;
+﻿using KenticoCloud.Delivery;
+using Microsoft.AspNetCore.Mvc;
 
 namespace WebhookCacheInvalidationMvc.Controllers
 {
     public class BaseController : Controller
     {
-        public BaseController(ICachedDeliveryClient deliveryClient)
+        public BaseController(IDeliveryClient deliveryClient)
         {
             DeliveryClient = deliveryClient;
         }
 
-        protected ICachedDeliveryClient DeliveryClient { get; }
+        protected IDeliveryClient DeliveryClient { get; }
     }
 }

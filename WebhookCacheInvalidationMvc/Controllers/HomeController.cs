@@ -3,13 +3,12 @@ using System.Threading.Tasks;
 
 using KenticoCloud.Delivery;
 using WebhookCacheInvalidationMvc.Models;
-using WebhookCacheInvalidationMvc.Services;
 
 namespace WebhookCacheInvalidationMvc.Controllers
 {
     public class HomeController : BaseController
     {
-        public HomeController(ICachedDeliveryClient deliveryClient) : base(deliveryClient)
+        public HomeController(IDeliveryClient deliveryClient) : base(deliveryClient)
         {
             
         }

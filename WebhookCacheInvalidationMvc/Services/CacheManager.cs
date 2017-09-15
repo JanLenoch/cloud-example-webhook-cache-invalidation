@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Caching.Memory;
@@ -9,11 +8,10 @@ using Microsoft.Extensions.Primitives;
 using System.Threading;
 using WebhookCacheInvalidationMvc.Helpers;
 using WebhookCacheInvalidationMvc.Models;
-using KenticoCloud.Delivery;
 
 namespace WebhookCacheInvalidationMvc.Services
 {
-    public class CacheManager : ICacheManager, IDisposable
+    public class CacheManager : ICacheManager
     {
         #region "Fields"
 
@@ -57,32 +55,6 @@ namespace WebhookCacheInvalidationMvc.Services
             return entry;
         }
 
-        public async Task<DeliveryItemResponse<object>> GetOrCreateObjectAsync(Func<Task<DeliveryItemResponse<object>>> valueFactory, Func<DeliveryItemResponse<object>, IEnumerable<IdentifierSet>> dependencyListFactory, IEnumerable<string> identifierTokens)
-        {
-            if (!_memoryCache.TryGetValue(StringHelpers.Join(identifierTokens), out DeliveryItemResponse<object> entry))
-            {
-                DeliveryItemResponse<object> response = await valueFactory();
-                CreateEntry(response, dependencyListFactory, identifierTokens);
-
-                return response;
-            }
-
-            return entry;
-        }
-
-        public async Task<DeliveryItemListingResponse<object>> GetOrCreateObjectCollectionAsync(Func<Task<DeliveryItemListingResponse<object>>> valueFactory, Func<DeliveryItemListingResponse<object>, IEnumerable<IdentifierSet>> dependencyListFactory, IEnumerable<string> identifierTokens)
-        {
-            if (!_memoryCache.TryGetValue(StringHelpers.Join(identifierTokens), out DeliveryItemListingResponse<object> entry))
-            {
-                DeliveryItemListingResponse<object> response = await valueFactory();
-                CreateEntry(response, dependencyListFactory, identifierTokens);
-
-                return response;
-            }
-
-            return entry;
-        }
-
         public void CreateEntry<T>(T value, Func<T, IEnumerable<IdentifierSet>> dependencyListFactory, IEnumerable<string> identifierTokens)
         {
             var dependencies = dependencyListFactory(value);
@@ -91,10 +63,7 @@ namespace WebhookCacheInvalidationMvc.Services
 
             foreach (var dependency in dependencies)
             {
-                var dummyIdentifierTokens = new List<string>();
-                dummyIdentifierTokens.Add("dummy");
-                dummyIdentifierTokens.Add(dependency.Type);
-                dummyIdentifierTokens.Add(dependency.Codename);
+                var dummyIdentifierTokens = new List<string> { "dummy", dependency.Type, dependency.Codename };
                 var dummyKey = StringHelpers.Join(dummyIdentifierTokens);
                 CancellationTokenSource dummyEntry;
 
@@ -134,7 +103,7 @@ namespace WebhookCacheInvalidationMvc.Services
                 if (_memoryCache.TryGetValue(StringHelpers.Join("dummy", typeIdentifier, identifiers.Codename), out CancellationTokenSource dummyEntry))
                 {
                     dummyEntry.Cancel();
-                } 
+                }
             }
         }
 
@@ -164,11 +133,6 @@ namespace WebhookCacheInvalidationMvc.Services
             }
 
             _disposed = true;
-        }
-
-        private MemoryCacheEntryOptions CreateOptionsWithSlidingExpiration()
-        {
-            return new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
         }
 
         #endregion

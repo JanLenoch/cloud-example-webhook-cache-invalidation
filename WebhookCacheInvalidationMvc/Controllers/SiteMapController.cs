@@ -5,13 +5,12 @@ using System.Threading.Tasks;
 
 using SimpleMvcSitemap;
 using KenticoCloud.Delivery;
-using WebhookCacheInvalidationMvc.Services;
 
 namespace WebhookCacheInvalidationMvc.Controllers
 {
     public class SiteMapController : BaseController
     {
-        public SiteMapController(ICachedDeliveryClient deliveryClient): base(deliveryClient)
+        public SiteMapController(IDeliveryClient deliveryClient): base(deliveryClient)
         {
         }
 

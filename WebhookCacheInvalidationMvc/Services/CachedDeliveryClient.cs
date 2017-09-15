@@ -13,7 +13,7 @@ using WebhookCacheInvalidationMvc.Models;
 
 namespace WebhookCacheInvalidationMvc.Services
 {
-    public class CachedDeliveryClient : ICachedDeliveryClient, IDisposable
+    public class CachedDeliveryClient : IDeliveryClient, IDisposable
     {
         #region "Fields"
 
@@ -123,7 +123,7 @@ namespace WebhookCacheInvalidationMvc.Services
             identifierTokens.Add(codename);
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync(codename, parameters), GetContentItemOrListingDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync(codename, parameters), GetDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -133,41 +133,14 @@ namespace WebhookCacheInvalidationMvc.Services
         /// <param name="codename">The codename of a content item.</param>
         /// <param name="parameters">A collection of query parameters, for example for projection or depth of modular content.</param>
         /// <returns>The <see cref="DeliveryItemResponse{T}"/> instance that contains the content item with the specified codename.</returns>
-        public async Task<DeliveryItemResponse<T>> GetItemAsync<T>(string codename, IEnumerable<IQueryParameter> parameters = null)
-        {
-            string cacheKey = $"{nameof(GetItemAsync)}-{typeof(T).FullName}|{codename}|{Join(parameters?.Select(p => p.GetQueryStringParameter()).ToList())}";
-
-            return await GetOrCreateAsync(codename, () => _deliveryClient.GetItemAsync<T>(codename, parameters));
-        }
-
-        async Task<DeliveryItemResponse<T>> ICachedDeliveryClient.GetItemAsync<T>(string codename, params IQueryParameter[] parameters)
-        {
-            return await (this as ICachedDeliveryClient).GetItemAsync<T>(codename, (IEnumerable<IQueryParameter>)parameters);
-        }
-
-        async Task<DeliveryItemResponse<T>> ICachedDeliveryClient.GetItemAsync<T>(string codename, IEnumerable<IQueryParameter> parameters)
+        public async Task<DeliveryItemResponse<T>> GetItemAsync<T>(string codename, IEnumerable<IQueryParameter> parameters)
         {
             var identifierTokens = new List<string>();
             identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_typed"));
             identifierTokens.Add(codename);
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync<T>(codename, parameters), GetTypedContentItemDependencies, identifierTokens);
-        }
-
-        public async Task<DeliveryItemResponse<object>> GetRuntimeTypedItemAsync(string codename, params IQueryParameter[] parameters)
-        {
-            return await GetRuntimeTypedItemAsync(codename, (IEnumerable<IQueryParameter>)parameters);
-        }
-
-        public async Task<DeliveryItemResponse<object>> GetRuntimeTypedItemAsync(string codename, IEnumerable<IQueryParameter> parameters = null)
-        {
-            var identifierTokens = new List<string>();
-            identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_runtime_typed"));
-            identifierTokens.Add(codename);
-            AddIdentifiersFromParameters(parameters, identifierTokens);
-
-            return await _cacheManager.GetOrCreateObjectAsync(() => _deliveryClient.GetItemAsync<object>(codename, parameters), GetContentItemOrListingDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync<T>(codename, parameters), GetDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -192,7 +165,7 @@ namespace WebhookCacheInvalidationMvc.Services
             identifierTokens.Add(CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER);
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync(parameters), GetContentItemOrListingDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync(parameters), GetDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -207,46 +180,13 @@ namespace WebhookCacheInvalidationMvc.Services
             return await GetItemsAsync<T>((IEnumerable<IQueryParameter>)parameters);
         }
 
-        /// <summary>
-        /// Searches the content repository for items that match the filter criteria.
-        /// Returns strongly typed content items.
-        /// </summary>
-        /// <typeparam name="T">Type of the code-first model. (Or <see cref="object"/> if the return type is not yet known.)</typeparam>
-        /// <param name="parameters">A collection of query parameters, for example for filtering, ordering or depth of modular content.</param>
-        /// <returns>The <see cref="DeliveryItemListingResponse{T}"/> instance that contains the content items. If no query parameters are specified, all content items are returned.</returns>
         public async Task<DeliveryItemListingResponse<T>> GetItemsAsync<T>(IEnumerable<IQueryParameter> parameters)
-        {
-            string cacheKey = $"{nameof(GetItemsAsync)}-{typeof(T).FullName}|{Join(parameters?.Select(p => p.GetQueryStringParameter()).ToList())}";
-
-            return await GetOrCreateAsync(cacheKey, () => _deliveryClient.GetItemsAsync<T>(parameters));
-        }
-
-        async Task<DeliveryItemListingResponse<T>> ICachedDeliveryClient.GetItemsAsync<T>(params IQueryParameter[] parameters)
-        {
-            return await (this as ICachedDeliveryClient).GetItemsAsync<T>((IEnumerable<IQueryParameter>)parameters);
-        }
-
-        async Task<DeliveryItemListingResponse<T>> ICachedDeliveryClient.GetItemsAsync<T>(IEnumerable<IQueryParameter> parameters)
         {
             var identifierTokens = new List<string>();
             identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, "_typed"));
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync<T>(parameters), GetTypedContentItemListingDependencies, identifierTokens);
-        }
-
-        public async Task<DeliveryItemListingResponse<object>> GetRuntimeTypedItemListingAsync(params IQueryParameter[] parameters)
-        {
-            return await GetRuntimeTypedItemListingAsync((IEnumerable<IQueryParameter>)parameters);
-        }
-
-        public async Task<DeliveryItemListingResponse<object>> GetRuntimeTypedItemListingAsync(IEnumerable<IQueryParameter> parameters)
-        {
-            var identifierTokens = new List<string>();
-            identifierTokens.Add(string.Join(string.Empty, CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, "_runtime_typed"));
-            AddIdentifiersFromParameters(parameters, identifierTokens);
-
-            return await _cacheManager.GetOrCreateObjectCollectionAsync(() => _deliveryClient.GetItemsAsync<object>(parameters), GetContentItemOrListingDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync<T>(parameters), GetDependencies, identifierTokens);
         }
 
         /// <summary>
@@ -320,12 +260,12 @@ namespace WebhookCacheInvalidationMvc.Services
             return await GetOrCreateAsync(cacheKey, () => _deliveryClient.GetContentElementAsync(contentTypeCodename, contentElementCodename));
         }
 
-        public static IEnumerable<IdentifierSet> GetContentItemOrListingDependencies<T>(T response)
+        public static IEnumerable<IdentifierSet> GetDependencies<T>(T response)
         {
             var dependencies = new List<IdentifierSet>();
             AddModularContentDependencies(response, dependencies);
 
-            if (response is DeliveryItemResponse || response is DeliveryItemResponse<object>)
+            if (response is DeliveryItemResponse || response is DeliveryItemResponse<T>)
             {
                 var ownDependency = new IdentifierSet
                 {
@@ -338,8 +278,7 @@ namespace WebhookCacheInvalidationMvc.Services
                     dependencies.Add(ownDependency);
                 }
             }
-
-            if (response is DeliveryItemListingResponse || response is DeliveryItemListingResponse<object>)
+            else if (response is DeliveryItemListingResponse || response is DeliveryItemListingResponse<T>)
             {
                 foreach (var codename in GetContentItemCodenamesFromListingResponse(response))
                 {
@@ -353,49 +292,6 @@ namespace WebhookCacheInvalidationMvc.Services
                     {
                         dependencies.Add(dependency);
                     }
-                }
-            }
-
-            return dependencies;
-        }
-
-        public static IEnumerable<IdentifierSet> GetTypedContentItemDependencies<T>(DeliveryItemResponse<T> response)
-            where T : IContentItemBase
-        {
-            var dependencies = new List<IdentifierSet>();
-            AddModularContentDependencies(response, dependencies);
-
-            var ownDependency = new IdentifierSet
-            {
-                Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
-                Codename = response.Item.System.Codename
-            };
-
-            if (!dependencies.Contains(ownDependency, new IdentifierSetEqualityComparer()))
-            {
-                dependencies.Add(ownDependency);
-            }
-
-            return dependencies;
-        }
-
-        public static IEnumerable<IdentifierSet> GetTypedContentItemListingDependencies<T>(DeliveryItemListingResponse<T> response)
-            where T : IContentItemBase
-        {
-            var dependencies = new List<IdentifierSet>();
-            AddModularContentDependencies(response, dependencies);
-
-            foreach (var item in response.Items)
-            {
-                var dependency = new IdentifierSet
-                {
-                    Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
-                    Codename = item.System.Codename
-                };
-
-                if (!dependencies.Contains(dependency, new IdentifierSetEqualityComparer()))
-                {
-                    dependencies.Add(dependency);
                 }
             }
 
@@ -499,7 +395,7 @@ namespace WebhookCacheInvalidationMvc.Services
         {
             if (parameters != null)
             {
-                identifierTokens.AddRange(parameters?.Select(p => p.GetQueryStringParameter())); 
+                identifierTokens.AddRange(parameters?.Select(p => p.GetQueryStringParameter()));
             }
         }
 

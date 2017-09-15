@@ -47,7 +47,7 @@ namespace WebhookCacheInvalidationMvc
             services.AddScoped<KenticoCloudSignatureActionFilter>();
             services.AddMvc();
 
-            services.AddSingleton<ICachedDeliveryClient>(c => new CachedDeliveryClient(c.GetRequiredService<IOptions<ProjectOptions>>(), c.GetRequiredService<ICacheManager>())
+            services.AddSingleton<IDeliveryClient>(c => new CachedDeliveryClient(c.GetRequiredService<IOptions<ProjectOptions>>(), c.GetRequiredService<ICacheManager>())
             {
                 CodeFirstModelProvider = { TypeProvider = new CustomTypeProvider() },
                 ContentLinkUrlResolver = new CustomContentLinkUrlResolver()
