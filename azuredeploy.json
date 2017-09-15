@@ -29,12 +29,6 @@
                 "2"
             ],
             "defaultValue": "0"
-        },        
-        "repoUrl": {
-            "type": "string"
-        },
-        "branch": {
-            "type": "string"
         }
     },
     "resources": [{
@@ -72,8 +66,8 @@
                 "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]"
             ],
             "properties": {
-                "RepoUrl": "[parameters('repoUrl')]",
-                "branch": "[parameters('branch')]",
+                "RepoUrl": "https://github.com/Kentico/cloud-example-webhook-cache-invalidation",
+                "branch": "master",
                 "IsManualIntegration": true
             }
         }]
