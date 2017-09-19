@@ -42,12 +42,16 @@ namespace WebhookCacheInvalidationMvc.Services
 
         #region "Public methods"
 
-        public async Task<T> GetOrCreateAsync<T>(Func<Task<T>> valueFactory, Func<T, IEnumerable<IdentifierSet>> dependencyListFactory, IEnumerable<string> identifierTokens)
+        public async Task<T> GetOrCreateAsync<T>(IEnumerable<string> identifierTokens, Func<Task<T>> valueFactory, Func<T, IEnumerable<IdentifierSet>> dependencyListFactory)
         {
+            // Check existence of the cache entry.
             if (!_memoryCache.TryGetValue(StringHelpers.Join(identifierTokens), out T entry))
             {
+                // If it doesn't exist, get it via valueFactory.
                 T response = await valueFactory();
-                CreateEntry(response, dependencyListFactory, identifierTokens);
+
+                // Create it. (Could be off-loaded to a background thread.)
+                CreateEntry(identifierTokens, response, dependencyListFactory);
 
                 return response;
             }
@@ -55,16 +59,22 @@ namespace WebhookCacheInvalidationMvc.Services
             return entry;
         }
 
-        public void CreateEntry<T>(T value, Func<T, IEnumerable<IdentifierSet>> dependencyListFactory, IEnumerable<string> identifierTokens)
+        public void CreateEntry<T>(IEnumerable<string> identifierTokens, T value, Func<T, IEnumerable<IdentifierSet>> dependencyListFactory)
         {
             var dependencies = dependencyListFactory(value);
+
+            // Restart entries' expiration period each time they're requested.
             var entryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(CacheExpirySeconds));
+
+            // Dummy entries never expire.
             var dummyOptions = new MemoryCacheEntryOptions().SetPriority(CacheItemPriority.NeverRemove);
 
             foreach (var dependency in dependencies)
             {
                 var dummyIdentifierTokens = new List<string> { "dummy", dependency.Type, dependency.Codename };
                 var dummyKey = StringHelpers.Join(dummyIdentifierTokens);
+
+                // Dummy entries hold just the CancellationTokenSource, nothing else.
                 CancellationTokenSource dummyEntry;
 
                 if (!_memoryCache.TryGetValue(dummyKey, out dummyEntry) || _memoryCache.TryGetValue(dummyKey, out dummyEntry) && dummyEntry.IsCancellationRequested)
@@ -74,6 +84,7 @@ namespace WebhookCacheInvalidationMvc.Services
 
                 if (dummyEntry != null)
                 {
+                    // Subscribe the main entry to dummy entry's cancellation token.
                     entryOptions.AddExpirationToken(new CancellationChangeToken(dummyEntry.Token));
                 }
             }
@@ -85,11 +96,12 @@ namespace WebhookCacheInvalidationMvc.Services
         {
             var typeIdentifiers = new List<string>();
 
-            if (identifiers.Type.Equals(CacheHelper.CONTENT_ITEM_TYPE_CODENAME))
+            // Aggregate several types that appear in webhooks into one.
+            if (identifiers.Type.Equals(CacheHelper.CONTENT_ITEM_TYPE_CODENAME, StringComparison.Ordinal) || identifiers.Type.Equals(CacheHelper.CONTENT_ITEM_VARIANT_TYPE_CODENAME, StringComparison.Ordinal))
             {
-                typeIdentifiers.AddRange(new[] { string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_typed"), string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_runtime_typed") });
+                typeIdentifiers.AddRange(new[] { CacheHelper.CONTENT_ITEM_TYPE_CODENAME, string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_variant"), string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_typed"), string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_runtime_typed") });
             }
-            else if (identifiers.Type.Equals(CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER))
+            else if (identifiers.Type.Equals(CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, StringComparison.Ordinal))
             {
                 typeIdentifiers.AddRange(new[] { string.Join(string.Empty, CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, "_typed"), string.Join(string.Empty, CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, "_runtime_typed") });
             }
@@ -102,6 +114,7 @@ namespace WebhookCacheInvalidationMvc.Services
             {
                 if (_memoryCache.TryGetValue(StringHelpers.Join("dummy", typeIdentifier, identifiers.Codename), out CancellationTokenSource dummyEntry))
                 {
+                    // Mark all subscribers to the CancellationTokenSource as invalid.
                     dummyEntry.Cancel();
                 }
             }

@@ -121,7 +121,7 @@ namespace WebhookCacheInvalidationMvc.Services
             var identifierTokens = new List<string> { CacheHelper.CONTENT_ITEM_TYPE_CODENAME, codename };
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync(codename, parameters), GetDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(identifierTokens, () => _deliveryClient.GetItemAsync(codename, parameters), GetDependencies);
         }
 
         /// <summary>
@@ -136,7 +136,7 @@ namespace WebhookCacheInvalidationMvc.Services
             var identifierTokens = new List<string> { string.Join(string.Empty, CacheHelper.CONTENT_ITEM_TYPE_CODENAME, "_typed"), codename };
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemAsync<T>(codename, parameters), GetDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(identifierTokens, () => _deliveryClient.GetItemAsync<T>(codename, parameters), GetDependencies);
         }
 
         /// <summary>
@@ -160,7 +160,7 @@ namespace WebhookCacheInvalidationMvc.Services
             var identifierTokens = new List<string> { CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER };
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync(parameters), GetDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(identifierTokens, () => _deliveryClient.GetItemsAsync(parameters), GetDependencies);
         }
 
         /// <summary>
@@ -180,7 +180,7 @@ namespace WebhookCacheInvalidationMvc.Services
             var identifierTokens = new List<string> { string.Join(string.Empty, CacheHelper.CONTENT_ITEM_LISTING_IDENTIFIER, "_typed") };
             AddIdentifiersFromParameters(parameters, identifierTokens);
 
-            return await _cacheManager.GetOrCreateAsync(() => _deliveryClient.GetItemsAsync<T>(parameters), GetDependencies, identifierTokens);
+            return await _cacheManager.GetOrCreateAsync(identifierTokens, () => _deliveryClient.GetItemsAsync<T>(parameters), GetDependencies);
         }
 
         /// <summary>
@@ -257,10 +257,14 @@ namespace WebhookCacheInvalidationMvc.Services
         public static IEnumerable<IdentifierSet> GetDependencies<T>(T response)
         {
             var dependencies = new List<IdentifierSet>();
+
+            // Both single-item and listing responses depend on their modular content items. Create dummy items for all modular content items.
             AddModularContentDependencies(response, dependencies);
 
-            if (response is DeliveryItemResponse || response.GetType().GetGenericTypeDefinition() == typeof(DeliveryItemResponse<>))
+            // Single-item responses
+            if (response is DeliveryItemResponse || (response.GetType().IsConstructedGenericType && response.GetType().GetGenericTypeDefinition() == typeof(DeliveryItemResponse<>)))
             {
+                // Create dummy item for the content item itself.
                 var ownDependency = new IdentifierSet
                 {
                     Type = CacheHelper.CONTENT_ITEM_TYPE_CODENAME,
@@ -272,8 +276,11 @@ namespace WebhookCacheInvalidationMvc.Services
                     dependencies.Add(ownDependency);
                 }
             }
-            else if (response is DeliveryItemListingResponse || response.GetType().GetGenericTypeDefinition() == typeof(DeliveryItemListingResponse<>))
+
+            // Listing responses
+            else if (response is DeliveryItemListingResponse || (response.GetType().IsConstructedGenericType && response.GetType().GetGenericTypeDefinition() == typeof(DeliveryItemListingResponse<>)))
             {
+                // Create dummy item for each content item in the listing.
                 foreach (var codename in GetContentItemCodenamesFromListingResponse(response))
                 {
                     var dependency = new IdentifierSet

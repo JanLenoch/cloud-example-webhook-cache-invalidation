@@ -18,10 +18,10 @@ namespace WebhookCacheInvalidationMvc.Controllers
             var response = await DeliveryClient.GetItemsAsync<Article>(
                 new EqualsFilter("system.type", "article"),
                 new LimitParameter(3),
-                new DepthParameter(0),
+                new DepthParameter(1),
                 new OrderParameter("elements.post_date")
             );
-            
+
             return View(response.Items);
         }
     }

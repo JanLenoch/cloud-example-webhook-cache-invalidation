@@ -2,18 +2,19 @@
 
 namespace WebhookCacheInvalidationMvc.Models
 {
-    public class IdentifierSet : IComparable<IdentifierSet>
+    public class IdentifierSet : IEquatable<IdentifierSet>
     {
         public string Type { get; set; }
         public string Codename { get; set; }
-        
-        public int CompareTo(IdentifierSet other)
+
+        public bool Equals(IdentifierSet other)
         {
-            if (ReferenceEquals(this, other)) return 0;
-            if (ReferenceEquals(null, other)) return 1;
-            var typeComparison = string.Compare(Type, other.Type, StringComparison.Ordinal);
-            if (typeComparison != 0) return typeComparison;
-            return string.Compare(Codename, other.Codename, StringComparison.Ordinal);
+            if (other != null && ReferenceEquals(this, other))
+            {
+                return true;
+            }
+
+            return Type.Equals(other.Type, StringComparison.Ordinal) && Codename.Equals(other.Codename, StringComparison.Ordinal);
         }
     }
 }

@@ -40,8 +40,10 @@ namespace WebhookCacheInvalidationMvc.Controllers
                             return Ok();
                     }
 
+                    // For all other operations, return OK to avoid webhook re-submissions.
                     return Ok();
                 default:
+                    // For all other types of artifacts, return OK, for the same reason as above.
                     return Ok();
             }
         }
