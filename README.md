@@ -1,6 +1,6 @@
 # Webhook Cache Invalidation
 
-The example code for the [Clearing Obsolete Cache Entries with Webhooks](https://kenticocloud.com/blog) article in the [Kentico Cloud blog](https://kenticocloud.com/blog).
+The example code for the [Clearing Obsolete Cache Entries with Webhooks](https://kenticocloud.com/blog/clearing-obsolete-cache-entries-with-webhooks) article in the [Kentico Cloud blog](https://kenticocloud.com/blog).
 
 The example ASP.NET MVC Core app showcases how webhooks in Kentico Cloud can be used to invalidate content cached in web app's memory cache.
 
